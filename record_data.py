@@ -12,6 +12,8 @@ import gym_donkeycar  # noqa: F401
 import numpy as np
 import pygame
 from pygame.locals import *  # noqa: F403
+from inputs import get_gamepad  # noqa: F401
+import math, threading
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-f", "--folder", help="Path to folder where images will be saved", type=str, required=True)
@@ -36,6 +38,112 @@ output_folder = args.folder
 
 # Create folder if needed
 os.makedirs(output_folder, exist_ok=True)
+
+# from: https://github.com/mgagvani/Xbox-Game-AI/blob/141611a02cea857c7ca5e06c3c0cb234cb9cc356/utils.py#L107
+class XboxController(object):
+    MAX_TRIG_VAL = math.pow(2, 8)
+    MAX_JOY_VAL = math.pow(2, 15)
+
+    def __init__(self):
+
+        self.LeftJoystickY = 0
+        self.LeftJoystickX = 0
+        self.RightJoystickY = 0
+        self.RightJoystickX = 0
+        self.LeftTrigger = 0
+        self.RightTrigger = 0
+        self.LeftBumper = 0
+        self.RightBumper = 0
+        self.A = 0
+        self.X = 0
+        self.Y = 0
+        self.B = 0
+        self.LeftThumb = 0
+        self.RightThumb = 0
+        self.Back = 0
+        self.Start = 0
+        self.LeftDPad = 0
+        self.RightDPad = 0
+        self.UpDPad = 0
+        self.DownDPad = 0
+
+        self._monitor_thread = threading.Thread(target=self._monitor_controller, args=())
+        self._monitor_thread.daemon = True
+        self._monitor_thread.start()
+
+
+    def read(self):
+        L_X = self.LeftJoystickX
+        L_Y = self.LeftJoystickY
+        R_X = self.RightJoystickX
+        R_Y = self.RightJoystickY
+        LT = self.LeftTrigger
+        RT = self.RightTrigger
+        LB = self.LeftBumper
+        RB = self.RightBumper
+        A = self.A
+        X = self.X
+        Y = self.Y
+        B = self.B
+        LTh = self.LeftThumb
+        RTh = self.RightThumb
+        Back = self.Back
+        Start = self.Start
+        # dpad does not work
+        DP_L = self.LeftDPad
+        DP_R = self.RightDPad
+        DP_U = self.UpDPad
+        DP_D = self.DownDPad
+
+        # return [L_X, L_Y, R_X, R_Y, RT]
+        return [L_X, L_Y, R_X, R_Y, LT, RT, LB, RB, A, X, Y, B, LTh, RTh, Back, Start]
+        # return [L_X, L_Y, R_X, R_Y, RT]
+
+
+    def _monitor_controller(self):
+        while True:
+            events = get_gamepad()
+            for event in events:
+                if event.code == 'ABS_Y':
+                    self.LeftJoystickY = event.state / XboxController.MAX_JOY_VAL # normalize between -1 and 1
+                elif event.code == 'ABS_X':
+                    self.LeftJoystickX = event.state / XboxController.MAX_JOY_VAL # normalize between -1 and 1
+                elif event.code == 'ABS_RY':
+                    self.RightJoystickY = event.state / XboxController.MAX_JOY_VAL # normalize between -1 and 1
+                elif event.code == 'ABS_RX':
+                    self.RightJoystickX = event.state / XboxController.MAX_JOY_VAL # normalize between -1 and 1
+                elif event.code == 'ABS_Z':
+                    self.LeftTrigger = event.state / XboxController.MAX_TRIG_VAL # normalize between 0 and 1
+                elif event.code == 'ABS_RZ':
+                    self.RightTrigger = event.state / XboxController.MAX_TRIG_VAL # normalize between 0 and 1
+                elif event.code == 'BTN_TL':
+                    self.LeftBumper = event.state
+                elif event.code == 'BTN_TR':
+                    self.RightBumper = event.state
+                elif event.code == 'BTN_SOUTH':
+                    self.A = event.state
+                elif event.code == 'BTN_NORTH':
+                    self.X = event.state
+                elif event.code == 'BTN_WEST':
+                    self.Y = event.state
+                elif event.code == 'BTN_EAST':
+                    self.B = event.state
+                elif event.code == 'BTN_THUMBL':
+                    self.LeftThumb = event.state
+                elif event.code == 'BTN_THUMBR':
+                    self.RightThumb = event.state
+                elif event.code == 'BTN_SELECT':
+                    self.Back = event.state
+                elif event.code == 'BTN_START':
+                    self.Start = event.state
+                elif event.code == 'BTN_TRIGGER_HAPPY1':
+                    self.LeftDPad = event.state
+                elif event.code == 'BTN_TRIGGER_HAPPY2':
+                    self.RightDPad = event.state
+                elif event.code == 'BTN_TRIGGER_HAPPY3':
+                    self.UpDPad = event.state
+                elif event.code == 'BTN_TRIGGER_HAPPY4':
+                    self.DownDPad = event.state
 
 
 def control(
@@ -83,17 +191,43 @@ window = pygame.display.set_mode((400, 400), RESIZABLE)
 
 control_throttle, control_steering = 0, 0
 
-env = gym.make("donkey-mountain-track-v0")
+conf = {
+        "body_style": "cybertruck",
+        "body_rgb": (64, 224, 117),
+        "car_name": "Manual Drive",
+        "font_size": 100,
+        "racer_name": "Manav Gagvani",
+        "country": "USA",
+        "bio": ":)",
+        "max_cte": 7.5,
+
+        "throttle_min": 0.0,
+} 
+
+env = gym.make("donkey-mountain-track-v0", conf=conf)
 obs = env.reset()
+
+controller = XboxController()
+
 for frame_num in range(total_frames):
     x, theta = 0, 0
     # Record pressed keys
-    keys = pygame.key.get_pressed()
-    for keycode in moveBindingsGame.keys():
-        if keys[keycode]:
-            x_tmp, th_tmp = moveBindingsGame[keycode]
-            x += x_tmp
-            theta += th_tmp
+    # keys = pygame.key.get_pressed()
+    # for keycode in moveBindingsGame.keys():
+    #     if keys[keycode]:
+    #         x_tmp, th_tmp = moveBindingsGame[keycode]
+    #         x += x_tmp
+    #         theta += th_tmp   
+        
+    # Read controller
+    controller_input = controller.read()
+    L_X, L_Y, R_X, R_Y, LT, RT, LB, RB, A, X, Y, B, LTh, RTh, Back, Start = controller_input
+    x = RT
+    theta = L_X
+
+    if B == 1:
+        env.reset()
+        control_throttle, control_steering = 0, 0
 
     # Smooth control for teleoperation
     control_throttle, control_steering = control(x, theta, control_throttle, control_steering)
@@ -117,10 +251,11 @@ for frame_num in range(total_frames):
     pygame.display.flip()
 
     # steer, throttle
-    action = np.array([-control_steering, control_throttle])
+    action = np.array([control_steering, control_throttle])
 
     for _ in range(frame_skip):
-        obs, _, done, _ = env.step(action)
+        obs, _rew, done, _info = env.step(action)
+        # print(_rew, done, _info)
         if done:
             break
     if render:
