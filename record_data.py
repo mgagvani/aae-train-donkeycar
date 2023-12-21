@@ -3,7 +3,9 @@ Simple script to manually record data
 by driving around.
 """
 import argparse
+import math
 import os
+import threading
 from typing import Tuple
 
 import cv2
@@ -11,9 +13,8 @@ import gym
 import gym_donkeycar  # noqa: F401
 import numpy as np
 import pygame
-from pygame.locals import *  # noqa: F403
 from inputs import get_gamepad  # noqa: F401
-import math, threading
+from pygame.locals import *  # noqa: F403
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-f", "--folder", help="Path to folder where images will be saved", type=str, required=True)

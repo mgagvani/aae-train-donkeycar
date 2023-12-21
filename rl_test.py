@@ -1,12 +1,13 @@
-import gym
-from gym import envs
-from stable_baselines3 import PPO
-from stable_baselines3.common.callbacks import CheckpointCallback
-import gym_donkeycar
-from stable_baselines3.ppo import *
 import glob
 import os
 import time
+
+import gym
+import gym_donkeycar
+from gym import envs
+from stable_baselines3 import PPO
+from stable_baselines3.common.callbacks import CheckpointCallback
+from stable_baselines3.ppo import *
 
 conf = {
         "body_style": "cybertruck",
