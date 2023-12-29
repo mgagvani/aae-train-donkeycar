@@ -45,6 +45,36 @@ class AutoencoderWrapper(gym.Wrapper):
         #     pass
         speed = info["speed"]
         new_obs = np.concatenate([encoded_image.flatten(), [speed]])
-        assert new_obs.shape == self.autoencoder.z_size + 1
-
         return new_obs.flatten(), reward, done, info
+    
+class LidarWrapper(gym.Wrapper):
+    """
+    Wrapper to make the observation space only lidar data
+
+    :param env: Gym environment
+    :param downsample: Downsample factor
+    """
+    def __init__(self, env: gym.Env, downsample=1):
+        super().__init__(env)
+        self.downsample = downsample
+        self.observation_space = gym.spaces.Box(
+            low=0, 
+            high=np.inf, 
+            shape=(360 // downsample,), 
+            dtype=np.float32,
+        )
+    
+    def reset(self) -> np.ndarray:
+        _ = self.env.reset()
+        obs, rew, done, info = self.env.step(np.array([0.0, 0.0]))
+        print(info)
+        new_obs = np.array([0 for _ in range(360 // self.downsample)]) # TODO: Fix this
+        return new_obs.flatten()[::self.downsample]
+        
+    
+    def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, Dict[str, Any]]:
+        obs, reward, done, info = self.env.step(action)
+        new_obs = np.array(info["lidar"]).flatten()[::self.downsample]
+        print(new_obs.shape)
+        return new_obs.flatten()[::self.downsample], reward, done, info
+
